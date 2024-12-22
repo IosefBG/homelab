@@ -1,0 +1,10 @@
+zone "home.devnexuslab.me" {
+    type master;
+    file "/etc/bind/zones/db.home.devnexuslab.me";
+    allow-update { key "rndc-key"; };
+};
+
+key "rndc-key" {
+    algorithm hmac-sha256;
+    secret "<generated-sha256-key>";
+};

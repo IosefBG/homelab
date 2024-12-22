@@ -1,0 +1,13 @@
+$TTL 86400
+@       IN      SOA     ns.home.devnexuslab.me. admin.home.devnexuslab.me. (
+                        1       ; Serial
+                        3600    ; Refresh
+                        1800    ; Retry
+                        1209600 ; Expire
+                        86400 ) ; Minimum TTL
+;
+        IN      NS      ns.home.devnexuslab.me.
+ns      IN      A       192.168.1.10  ; Replace with your server IP
+vault   IN      A       192.168.1.10
+portainer IN     A       192.168.1.10
+teleport IN     A       192.168.1.10

@@ -1,0 +1,19 @@
+version: "3.8"
+services:
+  vault:
+    image: vault:1.14
+    container_name: vault
+    volumes:
+      - ./vault.hcl:/vault/config/vault.hcl
+    environment:
+      VAULT_ADDR: https://vault.home.devnexuslab.me
+      VAULT_DEV_ROOT_TOKEN_ID: root
+    ports:
+      - "8200:8200"
+    networks:
+      - vault_network
+    restart: always
+
+networks:
+  vault_network:
+    name: vault_network

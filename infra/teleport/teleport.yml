@@ -1,0 +1,11 @@
+teleport:
+  data_dir: /var/lib/teleport
+  auth_token: "your-teleport-token"
+
+auth_service:
+  enabled: true
+ssh_service:
+  enabled: true
+proxy_service:
+  enabled: true
+  public_addr: teleport.home.devnexuslab.me:3080

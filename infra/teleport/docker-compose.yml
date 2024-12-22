@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+  teleport:
+    image: public.ecr.aws/gravitational/teleport:13.0
+    container_name: teleport
+    volumes:
+      - ./teleport.yaml:/etc/teleport/teleport.yaml
+    ports:
+      - "3023:3023"
+      - "3025:3025"
+      - "3080:3080"
+    networks:
+      - teleport_network
+    restart: always
+
+networks:
+  teleport_network:
+    name: teleport_network

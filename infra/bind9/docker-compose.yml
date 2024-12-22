@@ -1,0 +1,12 @@
+version: "3.8"
+services:
+  bind9:
+    image: internetsystemsconsortium/bind9:9.18
+    container_name: bind9
+    volumes:
+      - ./named.conf.local:/etc/bind/named.conf.local
+      - ./zones:/etc/bind/zones
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    restart: always
