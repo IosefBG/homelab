@@ -4,12 +4,13 @@
 set -e
 
 # Variables
-REPO_URL="https://github.com/IosefBG/homelab.git"  # Replace with your actual Git repo URL
+REPO_URL="https://github.com/IosefBG/homelab.git"
 PROJECT_NAME="infra"
 INSTALL_DIR="/opt/$PROJECT_NAME"
-SUBNET="192.168.1.0/24"  # Adjust to your network
-GATEWAY="192.168.1.1"    # Adjust to your gateway
+SUBNET="192.168.1.0/24"
+GATEWAY="192.168.1.1"
 BASE_IP="192.168.1.101"
+ZONE_FILE="$INSTALL_DIR/bind9/config/zones/db.home.devnexuslab.me"
 
 # Function to check if a command exists
 command_exists() {
@@ -93,6 +94,35 @@ fi
 
 echo "[INFO] Navigating to the project directory..."
 cd $INSTALL_DIR
+
+echo "[INFO] Updating DNS for services..."
+# Function to update DNS zone file
+update_zone_file() {
+    local service_name=$1
+    local ip_address=$2
+    
+    # Check if the service already exists in the zone file
+    if grep -q "^${service_name}\s\+IN\s\+A" "$ZONE_FILE"; then
+        # Update existing record
+        sed -i "/^${service_name}\s\+IN\s\+A/c\\${service_name}\tIN\tA\t${ip_address}" "$ZONE_FILE"
+    else
+        # Add new record before the last line
+        echo -e "${service_name}\tIN\tA\t${ip_address}" >> "$ZONE_FILE"
+    fi
+}
+
+# Function to update zone file serial
+update_zone_serial() {
+    # Generate new serial based on date and increment
+    local new_serial=$(date +%Y%m%d)01
+    sed -i "s/[0-9]\{10\}\s*;\s*Serial/${new_serial} ; Serial/" "$ZONE_FILE"
+}
+
+echo "[INFO] Disabling the existing DNS Service..."
+# nano /etc/systemd/resolved.conf
+# remove the # from the line DNSStubListener=no
+sed -i 's/#DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf
+systemctl restart systemd-resolved
 
 echo "[INFO] Configuring static IPs for Docker Compose files..."
 CURRENT_IP=$BASE_IP

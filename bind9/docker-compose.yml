@@ -4,8 +4,8 @@ services:
     image: ubuntu/bind9:latest
     container_name: bind9
     volumes:
-      - ./named.conf.local:/etc/bind/named.conf.local
-      - ./zones:/etc/bind/zones
+      - ./config:/etc/bind
+      - ./cache:/var/cache/bind
     ports:
       - "53:53/udp"
       - "53:53/tcp"
