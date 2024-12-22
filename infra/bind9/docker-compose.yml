@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   bind9:
-    image: internetsystemsconsortium/bind9:9.18
+    image: ubuntu/bind9:latest
     container_name: bind9
     volumes:
       - ./named.conf.local:/etc/bind/named.conf.local

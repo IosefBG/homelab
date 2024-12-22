@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   vault:
-    image: vault:1.14
+    image: hashicorp/vault:latest
     container_name: vault
     volumes:
       - ./vault.hcl:/vault/config/vault.hcl
@@ -10,10 +10,4 @@ services:
       VAULT_DEV_ROOT_TOKEN_ID: root
     ports:
       - "8200:8200"
-    networks:
-      - vault_network
     restart: always
-
-networks:
-  vault_network:
-    name: vault_network
