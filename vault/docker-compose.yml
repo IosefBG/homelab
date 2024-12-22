@@ -5,9 +5,15 @@ services:
     container_name: vault
     volumes:
       - ./vault.hcl:/vault/config/vault.hcl
+      - ./file:/vault/file
     environment:
-      VAULT_ADDR: https://vault.home.devnexuslab.me
-      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_ADDR: "http://0.0.0.0:8200"
+      SKIP_SETCAP: "true"
+    cap_add:
+      - IPC_LOCK
+    command: server
     ports:
       - "8200:8200"
+    depends_on:
+      - postgres
     restart: always

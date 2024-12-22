@@ -4,9 +4,8 @@ storage "postgresql" {
 
 listener "tcp" {
   address = "0.0.0.0:8200"
-  tls_cert_file = "/vault/config/certs/vault-cert.pem"
-  tls_key_file  = "/vault/config/certs/vault-key.pem"
+  tls_disable = 1  # Disable TLS for initial setup
 }
 
-api_addr = "https://vault.home.devnexuslab.me:8200"
-cluster_addr = "https://vault.home.devnexuslab.me:8201"
+disable_mlock = true
+ui = true
