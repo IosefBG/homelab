@@ -235,6 +235,7 @@ if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
         # Update the connection URL in vault.hcl
         sed -i "s|connection_url = \"postgresql://.*\"|connection_url = \"postgresql://vault_user:vault_password@$POSTGRES_IP:5432/vault?sslmode=disable\"|g" "$INSTALL_DIR/vault/vault.hcl"
         echo "[INFO] Updated PostgreSQL connection in vault.hcl to use IP: $POSTGRES_IP"
+        chmod 644 $INSTALL_DIR/vault/vault.hcl
     else
         echo "[WARN] PostgreSQL IP not found. Make sure the postgres service directory is named 'postgres'"
     fi
@@ -274,6 +275,8 @@ docker exec -i postgres psql -U postgres <<EOF
 CREATE USER vault WITH PASSWORD 'vault';
 CREATE DATABASE vault OWNER vault;
 GRANT ALL PRIVILEGES ON DATABASE vault TO vault;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO vault;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO vault;
 EOF
 
 echo "[INFO] Displaying all service IPs:"
