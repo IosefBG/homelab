@@ -10,3 +10,4 @@ services:
       - "53:53/udp"
       - "53:53/tcp"
     restart: always
+    user: "100:101"

@@ -156,27 +156,15 @@ else
     echo "[ERROR] Vault directory does not exist in the project. Skipping Vault setup."
 fi
 
-# Update vault.hcl if it exists
-if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
-    echo "[INFO] Updating Vault configuration with PostgreSQL IP..."
-    if [ ! -z "$POSTGRES_IP" ]; then
-        # Create a backup of the original vault.hcl
-        cp "$INSTALL_DIR/vault/vault.hcl" "$INSTALL_DIR/vault/vault.hcl.bak"
-        
-        # Update the connection URL in vault.hcl
-        sed -i "s|connection_url = \"postgresql://.*\"|connection_url = \"postgresql://vault_user:vault_password@$POSTGRES_IP:5432/vault?sslmode=disable\"|g" "$INSTALL_DIR/vault/vault.hcl"
-        echo "[INFO] Updated PostgreSQL connection in vault.hcl to use IP: $POSTGRES_IP"
-    else
-        echo "[WARN] PostgreSQL IP not found. Make sure the postgres service directory is named 'postgres'"
-    fi
-fi
 
 echo "[INFO] Configuring static IPs for Docker Compose files and updating DNS records..."
 CURRENT_IP=$BASE_IP
 declare -A service_ips
 
 # Create a file to store service IPs
-echo "[INFO] Service IP Assignments:" > service_ips.txt
+rm $INSTALL_DIR/service_ips.txt
+touch $INSTALL_DIR/service_ips.txt
+echo "[INFO] Service IP Assignments:"
 
 for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git" \)); do
     cd $dir
@@ -191,7 +179,7 @@ for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git"
         service_ips[$service_name]=$CURRENT_IP
 
         # Record the IP assignment
-        echo "$service_name: $CURRENT_IP" >> service_ips.txt
+        echo "$service_name: $CURRENT_IP" >> $INSTALL_DIR/service_ips.txt
         
         # If this is the postgres service, store its IP for vault configuration
         if [ "$service_name" = "postgres" ]; then
@@ -226,9 +214,26 @@ echo "[INFO] Starting Bind9 for local DNS..."
 if [ -d "$INSTALL_DIR/bind9" ]; then
     cd "$INSTALL_DIR/bind9"
     docker-compose up -d || echo "[WARN] Bind9 already running or error during startup."
+    chmod -R 770 config
+    chmod -R 770 cache
     cd $INSTALL_DIR
 else
     echo "[ERROR] Bind9 directory does not exist in the project. Skipping Bind9 setup."
+fi
+
+# Update vault.hcl if it exists
+if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
+    echo "[INFO] Updating Vault configuration with PostgreSQL IP..."
+    if [ ! -z "$POSTGRES_IP" ]; then
+        # Create a backup of the original vault.hcl
+        cp "$INSTALL_DIR/vault/vault.hcl" "$INSTALL_DIR/vault/vault.hcl.bak"
+        
+        # Update the connection URL in vault.hcl
+        sed -i "s|connection_url = \"postgresql://.*\"|connection_url = \"postgresql://vault_user:vault_password@$POSTGRES_IP:5432/vault?sslmode=disable\"|g" "$INSTALL_DIR/vault/vault.hcl"
+        echo "[INFO] Updated PostgreSQL connection in vault.hcl to use IP: $POSTGRES_IP"
+    else
+        echo "[WARN] PostgreSQL IP not found. Make sure the postgres service directory is named 'postgres'"
+    fi
 fi
 
 echo "[INFO] Running Terraform to deploy the stack..."
@@ -252,5 +257,5 @@ for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git"
 done
 
 echo "[INFO] Displaying all service IPs:"
-cat service_ips.txt
+cat $INSTALL_DIR/service_ips.txt
 echo "[INFO] Setup completed successfully!"
