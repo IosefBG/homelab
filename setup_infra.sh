@@ -148,13 +148,6 @@ echo "[INFO] Disabling the existing DNS Service..."
 sed -i 's/#DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf
 systemctl restart systemd-resolved
 
-echo "[INFO] Configuring Vault..."
-if [ -d "$INSTALL_DIR/vault" ]; then
-    mkdir -p "$INSTALL_DIR/vault/file"
-    chmod 777 "$INSTALL_DIR/vault/file"
-else
-    echo "[ERROR] Vault directory does not exist in the project. Skipping Vault setup."
-fi
 
 echo "[INFO] Configuring static IPs for Docker Compose files and updating DNS records..."
 CURRENT_IP=$BASE_IP
@@ -233,7 +226,7 @@ if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
         cp "$INSTALL_DIR/vault/vault.hcl" "$INSTALL_DIR/vault/vault.hcl.bak"
 
         # Update the connection URL in vault.hcl
-        sed -i "s|connection_url = \"postgresql://.*\"|connection_url = \"postgresql://vault_user:vault_password@$POSTGRES_IP:5432/vault?sslmode=disable\"|g" "$INSTALL_DIR/vault/vault.hcl"
+        sed -i "s|connection_url = \"postgresql://.*\"|connection_url = \"postgresql://vault:vault@$POSTGRES_IP:5432/vault?sslmode=disable\"|g" "$INSTALL_DIR/vault/vault.hcl"
         echo "[INFO] Updated PostgreSQL connection in vault.hcl to use IP: $POSTGRES_IP"
         chmod 644 $INSTALL_DIR/vault/vault.hcl
     else
