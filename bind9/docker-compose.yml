@@ -9,7 +9,7 @@ services:
     volumes:
       - ./config:/etc/bind
       - ./cache:/var/cache/bind
-      - ./records:/var/cache/bind
+      - ./records:/var/lib/bind
     ports:
       - "53:53/udp"
       - "53:53/tcp"

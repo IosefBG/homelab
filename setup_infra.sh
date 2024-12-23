@@ -204,19 +204,18 @@ else
     echo "[ERROR] Zone file not found at $ZONE_FILE"
 fi
 
-echo "[INFO] Starting Bind9 for local DNS..."
-if [ -d "$INSTALL_DIR/bind9" ]; then
-    cd "$INSTALL_DIR/bind9"
-    docker-compose up -d || echo "[WARN] Bind9 already running or error during startup."
-    chmod -R 770 config
-    chmod -R 770 cache
-    sudo chown -R 100:101 ./config
-    sudo chown -R 100:101 ./cache
-    sudo chmod -R 770 ./cache
-    cd $INSTALL_DIR
-else
-    echo "[ERROR] Bind9 directory does not exist in the project. Skipping Bind9 setup."
-fi
+# echo "[INFO] Starting Bind9 for local DNS..."
+# if [ -d "$INSTALL_DIR/bind9" ]; then
+#     cd "$INSTALL_DIR/bind9"
+#     docker-compose up -d || echo "[WARN] Bind9 already running or error during startup."
+#     chmod -R 770 config
+#     chmod -R 770 cache
+#     sudo chown -R 100:101 ./config
+#     sudo chown -R 100:101 ./cache
+#     cd $INSTALL_DIR
+# else
+#     echo "[ERROR] Bind9 directory does not exist in the project. Skipping Bind9 setup."
+# fi
 
 # Update vault.hcl if it exists
 if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
@@ -267,6 +266,9 @@ echo "Setting up Vault database and user..."
 docker exec -i postgres psql -U postgres <<EOF
 CREATE USER vault WITH PASSWORD 'vault';
 CREATE DATABASE vault OWNER vault;
+EOF
+
+docker exec -i postgres psql -U vault -d vault <<EOF
 CREATE TABLE vault_kv_store (
   parent_path TEXT COLLATE "C" NOT NULL,
   path        TEXT COLLATE "C",
@@ -286,4 +288,10 @@ cat $INSTALL_DIR/service_ips.txt
 echo "[INFO] Setup completed successfully!"
 
 echo "[FINISH] The system is rebooting..."
-sudo reboot
+
+echo "[INFO] After everything works fine you can create teleport user with:"
+# echo "docker exec -it teleport tctl users add -g admin -p password teleport"
+echo "docker exec teleport tctl users add admin --roles=editor,access --logins=root,ubuntu"
+
+echo "You can generate TSIG from bind for dns with:"
+echo "docker exec bind9 tsig-keygen -a hmac-sha256"
