@@ -156,9 +156,27 @@ else
     echo "[ERROR] Vault directory does not exist in the project. Skipping Vault setup."
 fi
 
+# Update vault.hcl if it exists
+if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
+    echo "[INFO] Updating Vault configuration with PostgreSQL IP..."
+    if [ ! -z "$POSTGRES_IP" ]; then
+        # Create a backup of the original vault.hcl
+        cp "$INSTALL_DIR/vault/vault.hcl" "$INSTALL_DIR/vault/vault.hcl.bak"
+        
+        # Update the connection URL in vault.hcl
+        sed -i "s|connection_url = \"postgresql://.*\"|connection_url = \"postgresql://vault_user:vault_password@$POSTGRES_IP:5432/vault?sslmode=disable\"|g" "$INSTALL_DIR/vault/vault.hcl"
+        echo "[INFO] Updated PostgreSQL connection in vault.hcl to use IP: $POSTGRES_IP"
+    else
+        echo "[WARN] PostgreSQL IP not found. Make sure the postgres service directory is named 'postgres'"
+    fi
+fi
+
 echo "[INFO] Configuring static IPs for Docker Compose files and updating DNS records..."
 CURRENT_IP=$BASE_IP
 declare -A service_ips
+
+# Create a file to store service IPs
+echo "[INFO] Service IP Assignments:" > service_ips.txt
 
 for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git" \)); do
     cd $dir
@@ -171,7 +189,15 @@ for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git"
         
         # Store service name and IP for DNS update
         service_ips[$service_name]=$CURRENT_IP
+
+        # Record the IP assignment
+        echo "$service_name: $CURRENT_IP" >> service_ips.txt
         
+        # If this is the postgres service, store its IP for vault configuration
+        if [ "$service_name" = "postgres" ]; then
+            POSTGRES_IP=$CURRENT_IP
+        fi   
+
         CURRENT_IP=$(increment_ip $CURRENT_IP)
     fi
     cd $INSTALL_DIR
@@ -225,4 +251,6 @@ for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git"
     cd $INSTALL_DIR
 done
 
+echo "[INFO] Displaying all service IPs:"
+cat service_ips.txt
 echo "[INFO] Setup completed successfully!"
