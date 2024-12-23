@@ -4,13 +4,13 @@ services:
     image: postgres:15
     container_name: postgres
     environment:
-      POSTGRES_USER: vault_user
-      POSTGRES_PASSWORD: vault_password
-      POSTGRES_DB: vault
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vault_user -d vault"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5

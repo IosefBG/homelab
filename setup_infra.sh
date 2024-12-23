@@ -14,19 +14,19 @@ ZONE_FILE="$INSTALL_DIR/bind9/config/zones/db.home.devnexuslab.me"
 
 # Function to check if a command exists
 command_exists() {
-    command -v "$1" &> /dev/null
+    command -v "$1" &>/dev/null
 }
 
 # Function to increment IP address
 increment_ip() {
     ip=$1
-    IFS='.' read -r i1 i2 i3 i4 <<< "$ip"
+    IFS='.' read -r i1 i2 i3 i4 <<<"$ip"
     echo "$i1.$i2.$i3.$((i4 + 1))"
 }
 
 # Function to check if a Docker network exists
 network_exists() {
-    docker network inspect "$1" &> /dev/null
+    docker network inspect "$1" &>/dev/null
 }
 
 # Function to add network config to docker-compose
@@ -34,27 +34,27 @@ add_network_config() {
     local file=$1
     local service_name=$2
     local ip_address=$3
-    
+
     # Create a temporary file
     tmp_file=$(mktemp)
-    
+
     # If networks section exists, remove old lan_bridge config
     if grep -q "^networks:" "$file"; then
-        sed '/lan_bridge:/,/external: true/d' "$file" > "$tmp_file"
+        sed '/lan_bridge:/,/external: true/d' "$file" >"$tmp_file"
     else
         # Copy original content and add networks section
         cp "$file" "$tmp_file"
-        echo -e "\nnetworks:\n  lan_bridge:\n    external: true" >> "$tmp_file"
+        echo -e "\nnetworks:\n  lan_bridge:\n    external: true" >>"$tmp_file"
     fi
-    
+
     # Find the main service name if not provided
     if [ -z "$service_name" ]; then
         service_name=$(grep -A 1 "services:" "$file" | tail -n 1 | sed 's/[[:space:]]*//g' | sed 's/://')
     fi
-    
+
     # Add network configuration to the service
     sed -i "/^  $service_name:/a\    networks:\n      lan_bridge:\n        ipv4_address: $ip_address" "$tmp_file"
-    
+
     # Replace original file
     mv "$tmp_file" "$file"
 }
@@ -63,11 +63,11 @@ add_network_config() {
 update_zone_file() {
     local service_name=$1
     local ip_address=$2
-    
+
     if grep -q "^${service_name}\s\+IN\s\+A" "$ZONE_FILE"; then
         sed -i "/^${service_name}\s\+IN\s\+A/c\\${service_name}\tIN\tA\t${ip_address}" "$ZONE_FILE"
     else
-        echo -e "${service_name}\tIN\tA\t${ip_address}" >> "$ZONE_FILE"
+        echo -e "${service_name}\tIN\tA\t${ip_address}" >>"$ZONE_FILE"
     fi
 }
 
@@ -156,14 +156,15 @@ else
     echo "[ERROR] Vault directory does not exist in the project. Skipping Vault setup."
 fi
 
-
 echo "[INFO] Configuring static IPs for Docker Compose files and updating DNS records..."
 CURRENT_IP=$BASE_IP
 declare -A service_ips
 
 # Create a file to store service IPs
-rm $INSTALL_DIR/service_ips.txt
-touch $INSTALL_DIR/service_ips.txt
+if [ -f $INSTALL_DIR/service_ips.txt ]; then
+    rm $INSTALL_DIR/service_ips.txt
+    touch $INSTALL_DIR/service_ips.txt
+fi
 echo "[INFO] Service IP Assignments:"
 
 for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git" \)); do
@@ -171,20 +172,20 @@ for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git"
     if [ -f docker-compose.yml ]; then
         service_name=$(basename "$dir")
         echo "[INFO] Processing service: $service_name"
-        
+
         # Add network configuration
         add_network_config "docker-compose.yml" "$service_name" "$CURRENT_IP"
-        
+
         # Store service name and IP for DNS update
         service_ips[$service_name]=$CURRENT_IP
 
         # Record the IP assignment
-        echo "$service_name: $CURRENT_IP" >> $INSTALL_DIR/service_ips.txt
-        
+        echo "$service_name: $CURRENT_IP" >>$INSTALL_DIR/service_ips.txt
+
         # If this is the postgres service, store its IP for vault configuration
         if [ "$service_name" = "postgres" ]; then
             POSTGRES_IP=$CURRENT_IP
-        fi   
+        fi
 
         CURRENT_IP=$(increment_ip $CURRENT_IP)
     fi
@@ -195,16 +196,16 @@ echo "[INFO] Updating DNS zone file..."
 if [ -f "$ZONE_FILE" ]; then
     # Create backup of zone file
     cp "$ZONE_FILE" "${ZONE_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-    
+
     # Update each service in zone file
     for service in "${!service_ips[@]}"; do
         echo "[INFO] Adding/Updating DNS record for $service: ${service_ips[$service]}"
         update_zone_file "$service" "${service_ips[$service]}"
     done
-    
+
     # Update serial number
     update_zone_serial
-    
+
     echo "[INFO] Zone file updated successfully"
 else
     echo "[ERROR] Zone file not found at $ZONE_FILE"
@@ -216,6 +217,9 @@ if [ -d "$INSTALL_DIR/bind9" ]; then
     docker-compose up -d || echo "[WARN] Bind9 already running or error during startup."
     chmod -R 770 config
     chmod -R 770 cache
+    sudo chown -R 100:101 ./config
+    sudo chown -R 100:101 ./cache
+    sudo chmod -R 770 ./cache
     cd $INSTALL_DIR
 else
     echo "[ERROR] Bind9 directory does not exist in the project. Skipping Bind9 setup."
@@ -227,7 +231,7 @@ if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
     if [ ! -z "$POSTGRES_IP" ]; then
         # Create a backup of the original vault.hcl
         cp "$INSTALL_DIR/vault/vault.hcl" "$INSTALL_DIR/vault/vault.hcl.bak"
-        
+
         # Update the connection URL in vault.hcl
         sed -i "s|connection_url = \"postgresql://.*\"|connection_url = \"postgresql://vault_user:vault_password@$POSTGRES_IP:5432/vault?sslmode=disable\"|g" "$INSTALL_DIR/vault/vault.hcl"
         echo "[INFO] Updated PostgreSQL connection in vault.hcl to use IP: $POSTGRES_IP"
@@ -256,6 +260,25 @@ for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git"
     cd $INSTALL_DIR
 done
 
+# Wait for PostgreSQL to be ready
+echo "Waiting for PostgreSQL to be ready..."
+until docker exec postgres pg_isready -U postgres > /dev/null 2>&1; do
+    sleep 2
+done
+
+echo "PostgreSQL is ready."
+
+# Create the vault user and database
+echo "Setting up Vault database and user..."
+docker exec -i postgres psql -U postgres <<EOF
+CREATE USER vault WITH PASSWORD 'vault';
+CREATE DATABASE vault OWNER vault;
+GRANT ALL PRIVILEGES ON DATABASE vault TO vault;
+EOF
+
 echo "[INFO] Displaying all service IPs:"
 cat $INSTALL_DIR/service_ips.txt
 echo "[INFO] Setup completed successfully!"
+
+echo "[FINISH] The system is rebooting..."
+sudo reboot
