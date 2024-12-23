@@ -267,6 +267,15 @@ echo "Setting up Vault database and user..."
 docker exec -i postgres psql -U postgres <<EOF
 CREATE USER vault WITH PASSWORD 'vault';
 CREATE DATABASE vault OWNER vault;
+CREATE TABLE vault_kv_store (
+  parent_path TEXT COLLATE "C" NOT NULL,
+  path        TEXT COLLATE "C",
+  key         TEXT COLLATE "C",
+  value       BYTEA,
+  CONSTRAINT pkey PRIMARY KEY (path, key)
+);
+
+CREATE INDEX parent_path_idx ON vault_kv_store (parent_path);
 GRANT ALL PRIVILEGES ON DATABASE vault TO vault;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO vault;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO vault;
