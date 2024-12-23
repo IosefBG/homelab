@@ -20,8 +20,8 @@ command_exists() {
 # Function to increment IP address
 increment_ip() {
     ip=$1
-    IFS='.' read -r i1 i2 i3 i4 i5 <<< "$ip"
-    echo "$i1.$i2.$i3.$i4.$((i5 + 1))"
+    IFS='.' read -r i1 i2 i3 i4 <<< "$ip"
+    echo "$i1.$i2.$i3.$((i4 + 1))"
 }
 
 # Function to check if a Docker network exists
