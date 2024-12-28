@@ -10,7 +10,6 @@ INSTALL_DIR="/opt/$PROJECT_NAME"
 SUBNET="192.168.1.0/24"
 GATEWAY="192.168.1.1"
 BASE_IP="192.168.1.101"
-ZONE_FILE="$INSTALL_DIR/bind9/config/zones/db.home.devnexuslab.me"
 
 # Function to check if a command exists
 command_exists() {
@@ -59,23 +58,6 @@ add_network_config() {
     mv "$tmp_file" "$file"
 }
 
-# Function to update DNS zone file
-update_zone_file() {
-    local service_name=$1
-    local ip_address=$2
-
-    if grep -q "^${service_name}\s\+IN\s\+A" "$ZONE_FILE"; then
-        sed -i "/^${service_name}\s\+IN\s\+A/c\\${service_name}\tIN\tA\t${ip_address}" "$ZONE_FILE"
-    else
-        echo -e "${service_name}\tIN\tA\t${ip_address}" >>"$ZONE_FILE"
-    fi
-}
-
-# Function to update zone file serial
-update_zone_serial() {
-    local new_serial=$(date +%Y%m%d)01
-    sed -i "s/[0-9]\{10\}\s*;\s*Serial/${new_serial} ; Serial/" "$ZONE_FILE"
-}
 
 echo "[INFO] Cleaning up existing Docker containers..."
 # Stop all containers
@@ -91,17 +73,6 @@ sudo apt install -y git curl unzip jq docker.io docker-compose bind9 bind9-utils
 echo "[INFO] Creating backup of project directory..."
 if [ -d "$INSTALL_DIR" ]; then
     sudo mv $INSTALL_DIR "$INSTALL_DIR.bak.$(date +%Y%m%d%H%M%S)"
-fi
-
-echo "[INFO] Checking and installing Terraform..."
-if ! command_exists terraform; then
-    TERRAFORM_VERSION="1.5.7"
-    curl -o terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
-    unzip terraform.zip
-    sudo mv terraform /usr/local/bin/
-    rm terraform.zip
-else
-    echo "[INFO] Terraform is already installed."
 fi
 
 echo "[INFO] Checking and setting up Docker..."
@@ -185,38 +156,6 @@ for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git"
     cd $INSTALL_DIR
 done
 
-echo "[INFO] Updating DNS zone file..."
-if [ -f "$ZONE_FILE" ]; then
-    # Create backup of zone file
-    cp "$ZONE_FILE" "${ZONE_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-
-    # Update each service in zone file
-    for service in "${!service_ips[@]}"; do
-        echo "[INFO] Adding/Updating DNS record for $service: ${service_ips[$service]}"
-        update_zone_file "$service" "${service_ips[$service]}"
-    done
-
-    # Update serial number
-    update_zone_serial
-
-    echo "[INFO] Zone file updated successfully"
-else
-    echo "[ERROR] Zone file not found at $ZONE_FILE"
-fi
-
-# echo "[INFO] Starting Bind9 for local DNS..."
-# if [ -d "$INSTALL_DIR/bind9" ]; then
-#     cd "$INSTALL_DIR/bind9"
-#     docker-compose up -d || echo "[WARN] Bind9 already running or error during startup."
-#     chmod -R 770 config
-#     chmod -R 770 cache
-#     sudo chown -R 100:101 ./config
-#     sudo chown -R 100:101 ./cache
-#     cd $INSTALL_DIR
-# else
-#     echo "[ERROR] Bind9 directory does not exist in the project. Skipping Bind9 setup."
-# fi
-
 # Update vault.hcl if it exists
 if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
     echo "[INFO] Updating Vault configuration with PostgreSQL IP..."
@@ -231,16 +170,6 @@ if [ -f "$INSTALL_DIR/vault/vault.hcl" ]; then
     else
         echo "[WARN] PostgreSQL IP not found. Make sure the postgres service directory is named 'postgres'"
     fi
-fi
-
-echo "[INFO] Running Terraform to deploy the stack..."
-if [ -d "$INSTALL_DIR/terraform" ]; then
-    cd "$INSTALL_DIR/terraform"
-    terraform init
-    terraform apply -auto-approve
-    cd $INSTALL_DIR
-else
-    echo "[ERROR] Terraform directory does not exist in the project. Skipping Terraform deployment."
 fi
 
 echo "[INFO] Starting all Docker Compose services..."
@@ -294,4 +223,3 @@ echo "[INFO] After everything works fine you can create teleport user with:"
 echo "docker exec teleport tctl users add admin --roles=editor,access --logins=root,ubuntu"
 
 echo "You can generate TSIG from bind for dns with:"
-echo "docker exec bind9 tsig-keygen -a hmac-sha256"
