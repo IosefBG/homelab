@@ -1,0 +1,50 @@
+version: "3.9"
+services:
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    environment:
+      - DB_MYSQL=0
+      - DB_POSTGRES=1
+      - DB_HOST_FILE=/run/secrets/db_host
+      - DB_PORT_FILE=/run/secrets/db_port
+      - DB_USER_FILE=/run/secrets/db_user
+      - DB_PASSWORD_FILE=/run/secrets/db_password
+      - DB_NAME_FILE=/run/secrets/db_name
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    secrets:
+      - db_host
+      - db_port
+      - db_user
+      - db_password
+      - db_name
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    restart: unless-stopped
+
+  vault-agent:
+    image: hashicorp/vault
+    container_name: vault-agent
+    command: >
+      agent -config=/vault/config/vault-agent-config.hcl
+    volumes:
+      - ./vault:/vault
+    environment:
+      VAULT_ADDR: http://vault:8200
+    restart: unless-stopped
+
+secrets:
+  db_host:
+    file: /vault/secrets/db_host
+  db_port:
+    file: /vault/secrets/db_port
+  db_user:
+    file: /vault/secrets/db_user
+  db_password:
+    file: /vault/secrets/db_password
+  db_name:
+    file: /vault/secrets/db_name
