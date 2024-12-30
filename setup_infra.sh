@@ -58,7 +58,6 @@ add_network_config() {
     mv "$tmp_file" "$file"
 }
 
-
 echo "[INFO] Cleaning up existing Docker containers..."
 # Stop all containers
 docker stop $(docker ps -aq) 2>/dev/null || true
@@ -68,24 +67,47 @@ docker rm $(docker ps -aq) 2>/dev/null || true
 echo "[INFO] Updating system and installing prerequisites..."
 # Update system and install dependencies
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git curl unzip jq docker.io docker-compose bind9 bind9-utils dnsutils
+sudo apt install -y git curl unzip jq ca-certificates gnupg lsb-release
 
 echo "[INFO] Creating backup of project directory..."
 if [ -d "$INSTALL_DIR" ]; then
     sudo mv $INSTALL_DIR "$INSTALL_DIR.bak.$(date +%Y%m%d%H%M%S)"
 fi
 
-echo "[INFO] Checking and setting up Docker..."
-if ! command_exists docker; then
-    echo "[INFO] Installing Docker..."
-    sudo apt install -y docker.io
-    sudo systemctl enable docker
-    sudo systemctl start docker
-else
-    echo "[INFO] Docker is already installed and running."
-fi
+echo "[INFO] Installing Docker and required components..."
+# Remove older versions of Docker if any
+sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
 
+# Add Docker's official GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add Docker's repository to the APT sources
+echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" |
+    sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+
+# Update the package index again
+sudo apt-get update
+
+# Install Docker Engine, CLI, and necessary plugins
+sudo apt-get install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+
+# Enable and start Docker service
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Verify Docker installation
+echo "[INFO] Docker installation complete. Verifying installation..."
 docker --version
+docker compose version
 
 echo "[INFO] Checking and creating Docker MACVLAN network..."
 if network_exists lan_bridge; then
@@ -114,11 +136,6 @@ fi
 
 echo "[INFO] Navigating to the project directory..."
 cd $INSTALL_DIR
-
-echo "[INFO] Disabling the existing DNS Service..."
-sed -i 's/#DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf
-systemctl restart systemd-resolved
-
 
 echo "[INFO] Configuring static IPs for Docker Compose files and updating DNS records..."
 CURRENT_IP=$BASE_IP
@@ -177,14 +194,14 @@ for dir in $(find $INSTALL_DIR -maxdepth 1 -type d \( ! -name "." ! -name ".git"
     cd $dir
     if [ -f docker-compose.yml ]; then
         echo "[INFO] Starting Docker Compose service in $dir..."
-        docker-compose up -d || echo "[WARN] Error starting service in $dir."
+        docker compose up -d || echo "[WARN] Error starting service in $dir."
     fi
     cd $INSTALL_DIR
 done
 
 # Wait for PostgreSQL to be ready
 echo "Waiting for PostgreSQL to be ready..."
-until docker exec postgres pg_isready -U postgres > /dev/null 2>&1; do
+until docker exec postgres pg_isready -U postgres >/dev/null 2>&1; do
     sleep 2
 done
 
@@ -195,6 +212,9 @@ echo "Setting up Vault database and user..."
 docker exec -i postgres psql -U postgres <<EOF
 CREATE USER vault WITH PASSWORD 'vault';
 CREATE DATABASE vault OWNER vault;
+
+CREATE USER nginx WITH PASSWORD 'nginx';
+CREATE DATABASE nginx OWNER nginx;
 EOF
 
 docker exec -i postgres psql -U vault -d vault <<EOF
@@ -212,6 +232,13 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO vault;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO vault;
 EOF
 
+docker exec -i postgres psql -U nginx -d nginx <<EOF
+
+GRANT ALL PRIVILEGES ON DATABASE nginx TO nginx;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO nginx;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO nginx;
+EOF
+
 echo "[INFO] Displaying all service IPs:"
 cat $INSTALL_DIR/service_ips.txt
 echo "[INFO] Setup completed successfully!"
@@ -223,3 +250,4 @@ echo "[INFO] After everything works fine you can create teleport user with:"
 echo "docker exec teleport tctl users add admin --roles=editor,access --logins=root,ubuntu"
 
 echo "You can generate TSIG from bind for dns with:"
+echo "http://192.168.1.101:81/login"
